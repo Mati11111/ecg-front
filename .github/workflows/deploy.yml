@@ -28,3 +28,12 @@ jobs:
 
       - name: Run script
         run: python run_model.py
+        
+      - name: Save pip logs
+        run: pip install -v -r requirements.txt 2>&1 | tee pip_install.log
+      
+      - name: Upload log artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: pip-logs
+          path: pip_install.log
