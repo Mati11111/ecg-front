@@ -17,6 +17,9 @@ start_time_total = time.time()
 train_df = pd.read_csv("mitbih_train.csv", header=None)
 test_df = pd.read_csv("mitbih_test.csv", header=None)
 
+train_df = train_df.sample(5000, random_state=42)
+test_df = test_df.sample(1000, random_state=42)
+
 X_train = train_df.iloc[:, :-1].values
 y_train = train_df.iloc[:, -1].astype(int).values
 
@@ -58,7 +61,7 @@ model = ECGNet(X_train.shape[1], 5).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-epochs = 200
+epochs = 5
 train_losses = []
 val_losses = []
 
@@ -91,7 +94,11 @@ for epoch in range(epochs):
     avg_val_loss = val_loss / len(test_loader)
     val_losses.append(avg_val_loss)
 
-    epoch_time = time.time() - epoch_start   
+    epoch_time = time.time() - epoch_start
+    print(f"Epoch {epoch+1}/{epochs} - "
+          f"Train Loss: {avg_train_loss:.4f}, "
+          f"Val Loss: {avg_val_loss:.4f}, "
+          f"Tiempo: {epoch_time:.2f}s")
 
 print("\nEvaluando modelo...")
 model.eval()
@@ -125,9 +132,14 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.title("Confusion Matrix")
 plt.tight_layout()
-plt.show()
+plt.savefig("confusion_matrix.png")
+plt.close()
 
 total_time = time.time() - start_time_total
 print(f"\nTiempo de evaluación: {eval_time:.2f} segundos")
-print(f"\n Tiempo total de ejecución: {total_time:.2f} segundos")
+print(f"Tiempo total de ejecución: {total_time:.2f} segundos")
 
+with open("evaluation_results.txt", "w") as f:
+    f.write(f"Accuracy: {accuracy:.4f}\n")
+    f.write("Reporte de clasificación:\n")
+    f.write(classification_report(y_true, y_pred))
