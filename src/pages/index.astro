@@ -1,5 +1,15 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import { backendUrl } from "@/assets/getBackendUrl.astro";
+let serverStatus = "DISCONNECTED";
+try {
+  const res = await fetch(`${backendUrl}/health`);  
+  const data = await res.json();
+  if (data.ok) serverStatus = "CONNECTED";
+} catch (e) {
+  serverStatus = "DISCONNECTED";
+}
+console.log('Trying to connect to',backendUrl);
 ---
 
 <Layout>
@@ -30,26 +40,15 @@ import Layout from "@/layouts/Layout.astro";
                 </div>
                 <div class="flex flex-row items-center">
                   <p class="text-4xl p-3 font-bold text-white">F</p>
-                  <img
-                    src="/dotempty.svg"
-                    alt="Heart Icon"
-                    class="w-20 h-20"
-                  />
+                  <img src="/dotempty.svg" alt="Heart Icon" class="w-20 h-20" />
                 </div>
                 <div class="flex flex-row items-center">
                   <p class="text-4xl p-3 font-bold text-white">L</p>
-                  <img
-                    src="/dotempty.svg"
-                    alt="Heart Icon"
-                    class="w-20 h-20"
-                  />
+                  <img src="/dotempty.svg" alt="Heart Icon" class="w-20 h-20" />
                 </div>
               </div>
             </div>
-            <div
-              id="signals-container"
-              class="bg-black w-full h-[400px] m-5"
-            >
+            <div id="signals-container" class="bg-black w-full h-[400px] m-5">
             </div>
             <div
               id="bpm-electrodes-container"
@@ -96,7 +95,7 @@ import Layout from "@/layouts/Layout.astro";
               <div class="flex flex-col items-center justify-center w-1/4">
                 <p class="text-3xl p-5 pb-0 font-bold text-white">SERVER</p>
                 <p class="text-3xl p-5 pt-0 font-bold text-white">STATUS</p>
-                <p class="text-1xl p-5 font-bold text-white">CONNECTED</p>
+                <p class="text-1xl p-5 font-bold text-white">{serverStatus}</p>
                 <button
                   class="bg-[#000000] bg-opacity-60 font-bold text-white px-6 py-2"
                   >RUN</button
