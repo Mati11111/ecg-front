@@ -7,7 +7,7 @@ try {
   const data = await res.json();
   if (data.ok) serverStatus = "CONNECTED";
 } catch (e: any) {
-  serverStatus = e.toString();
+  serverStatus = "DISCONNECTED";
 }
 console.log("Trying to connect to", backendUrl);
 ---
