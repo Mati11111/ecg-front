@@ -1,0 +1,46 @@
+name: Test Python Imports and Build Binary
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-20.04
+
+    steps:
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8.8"
+
+
+      - name: Upgrade pip and show version
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip --version
+
+
+      - name: Install minimal packages
+        run: |
+          pip install pandas numpy matplotlib seaborn scikit-learn torch
+
+
+      - name: Run model script
+        run: |
+          python run_model.py
+
+
+      - name: Python3.8 PyInstaller Linux AMD64
+        uses: action-python/pyinstaller-py3.8@v1.0.0
+        with:
+          path: .                   # carpeta con tu código
+          spec: ""                  # si tienes un .spec, pon la ruta, sino deja vacío
+          requirements: requirements.txt
+          rename: run_model_binary   # nombre del ejecutable
