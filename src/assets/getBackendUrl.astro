@@ -1,4 +1,14 @@
 ---
+import fs from "fs";
+import path from "path";
 
-export const backendUrl = "https://050bfb5aa817.ngrok-free.app";
+export function getBackendUrl() {
+  try {
+    const filePath = path.resolve("./src/assets/ngrok_link.txt");
+    return fs.readFileSync(filePath, "utf-8").trim();
+  } catch (e) {
+    console.error("No se pudo leer ngrok_link.txt:", e);
+    return "";
+  }
+}
 ---

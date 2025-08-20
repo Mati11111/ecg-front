@@ -1,7 +1,48 @@
 ---
 import Layout from "@/layouts/Layout.astro";
-import { backendUrl } from "@/assets/getBackendUrl.astro";
+import { execFile } from "child_process";
+import { getBackendUrl } from "@/assets/getBackendUrl.astro";
+
+const backendUrl = getBackendUrl();
+
+export const prerender = false;
+
 let serverStatus = "DISCONNECTED";
+
+if (Astro.request?.method === "POST") {
+  const bodyText = await Astro.request.text();
+
+  let payload;
+  try {
+    payload = JSON.parse(bodyText);
+  } catch (e) {
+    console.error("JSON inválido:", e);
+    return new Response("Invalid JSON", { status: 400 });
+  }
+
+  const commitMessage = payload.commits[0].message || "No commit message";
+
+  console.log("Commit recibido:", commitMessage);
+
+  // Ejecutar script pasándole el commit como argumento
+  execFile("./pullGitRepo.sh", [commitMessage], (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error ejecutando script: ${error.message}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+      return;
+    }
+    console.log(`stdout: ${stdout}`);
+  });
+
+  return new Response(commitMessage, {
+    status: 200,
+    headers: { "Content-Type": "text/plain" },
+  });
+}
+
 try {
   const res = await fetch(`${backendUrl}/health`);
   const data = await res.json();
@@ -9,6 +50,7 @@ try {
 } catch (e: any) {
   serverStatus = "DISCONNECTED";
 }
+
 console.log("Trying to connect to", backendUrl);
 ---
 
