@@ -1,4 +1,4 @@
-# ECG-MONITOR - Arrythmia Categorizator 
+# ECG-MONITOR - Arrythmia Categorizator
 ## Backend - Server RaspberryPI
 Server running locally on RaspberryPI with fastapi on Python. Tunneled with ngrok. Current URL [here](https://github.com/Mati11111/ecg-front/blob/master/src/assets/ngrok_link.txt).
 ### Endpoints
