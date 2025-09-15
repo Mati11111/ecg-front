@@ -3,11 +3,26 @@ import Layout from "@/layouts/Layout.astro";
 import { execFile } from "child_process";
 import { getBackendUrl } from "@/assets/getBackendUrl.astro";
 
+import PlotSignals from "@/components/PlotSignals.tsx";
+import ProcessPrediction from "@/components/ProcessPrediction";
+import RunButton from "@/components/RunButton.tsx";
+
 const backendUrl = getBackendUrl();
+let ecgData: { labels: string[]; values: number[] } = {
+  labels: [],
+  values: [],
+};
+
+let predictionData: {
+  labels: string[];
+  values: number[];
+  predictedClasses: (string | number | null)[];
+} = { labels: [], values: [], predictedClasses: [] };
 
 export const prerender = false;
 
 let serverStatus = "DISCONNECTED";
+let bpmValue = 0;
 
 if (Astro.request?.method === "POST") {
   const bodyText = await Astro.request.text();
@@ -42,6 +57,7 @@ if (Astro.request?.method === "POST") {
   });
 }
 
+// get server status
 try {
   const res = await fetch(`${backendUrl}/health`);
   const data = await res.json();
@@ -50,16 +66,79 @@ try {
   serverStatus = "DISCONNECTED";
 }
 
-console.log("Trying to connect to", backendUrl);
+// get bpm
+try {
+  const res = await fetch(`${backendUrl}/bpm`);
+  const data = await res.json();
+  if (data.bpm) bpmValue = data.bpm;
+} catch (e: any) {
+  bpmValue = 0;
+}
+// get ecg data
+try {
+  const res = await fetch(`${backendUrl}/ecg`);
+  const data = await res.json();
+  ecgData = {
+    labels: data.map((d: any) => d.timestamp),
+    values: data.map((d: any) => d.value),
+  };
+} catch (e: any) {
+  console.error("Error fetching ECG data:", e);
+  ecgData = { labels: [], values: [] };
+}
+` `;
+
+// get prediction data
+try {
+  const res = await fetch(`${backendUrl}/sendPrediction`);
+  const data = await res.json();
+
+  const firstPrediction = data.predictions[0];
+  const entries = Object.entries(firstPrediction).filter(
+    ([key]) => key !== "Predicted_Class",
+  );
+
+  const labels = entries.map(([key]) => key);
+
+  const values = data.predictions.map((pred: any) => {
+    const entries = Object.entries(pred).filter(
+      ([key]) => key !== "Predicted_Class",
+    );
+    return entries.map(([_, value]) => Number(value));
+  });
+
+  const predictedClasses = data.predictions.map(
+    (pred: any) => pred.Predicted_Class ?? null,
+  );
+
+  const classCounts: Record<string, number> = {};
+  predictedClasses.forEach((cls: string | number | null) => {
+    if (cls !== null) {
+      classCounts[cls] = (classCounts[cls] || 0) + 1;
+    }
+  });
+
+  const classLabels = Object.keys(classCounts);
+  const classValues = Object.values(classCounts);
+
+  predictionData = {
+    labels: classLabels,
+    values: classValues,
+    predictedClasses,
+  };
+} catch (e: any) {
+  console.error("Error fetching ECG data:", e);
+  predictionData = { labels: [], values: [], predictedClasses: [] };
+}
 ---
 
 <Layout>
   <div
     id="background"
-    class="bg-[#666161] min-h-[90vh] m-2 flex items-center justify-center"
+    class="bg-[#666161] min-h-[100vh] m-2 flex items-center justify-center"
   >
     <div class="flex w-full h-full">
-      <div id="left-container" class="flex flex-col w-1/2">
+      <div id="left-container" class="flex w-1/2">
         <div
           id="upper-container"
           class="bg-black bg-opacity-60 rounded-lg m-3 p-5 flex flex-col items-center justify-center"
@@ -68,7 +147,7 @@ console.log("Trying to connect to", backendUrl);
             <div id="bpm-electrodes-container" class="flex flex-col">
               <div id="bpm-container" class="flex flex-col items-center h-full">
                 <p class="text-4xl p-3 font-bold text-white">BPM</p>
-                <p class="text-4xl p-3 font-bold text-white">75.2</p>
+                <p class="text-4xl p-3 font-bold text-white">{bpmValue}</p>
               </div>
               <div id="electrodes-container" class="flex flex-col items-center">
                 <div class="flex flex-row items-center">
@@ -79,17 +158,13 @@ console.log("Trying to connect to", backendUrl);
                     class="w-20 h-20"
                   />
                 </div>
-                <div class="flex flex-row items-center">
-                  <p class="text-4xl p-3 font-bold text-white">F</p>
-                  <img src="/dotempty.svg" alt="Heart Icon" class="w-20 h-20" />
-                </div>
-                <div class="flex flex-row items-center">
-                  <p class="text-4xl p-3 font-bold text-white">L</p>
-                  <img src="/dotempty.svg" alt="Heart Icon" class="w-20 h-20" />
-                </div>
               </div>
             </div>
-            <div id="signals-container" class="bg-black w-full h-[400px] m-5">
+            <div
+              id="signals-container"
+              class="w-full h-[400px] m-5 bg-black rounded"
+            >
+              <PlotSignals client:load ecgData={ecgData} />
             </div>
             <div
               id="bpm-electrodes-container"
@@ -121,7 +196,8 @@ console.log("Trying to connect to", backendUrl);
             <p class="text-4xl p-3 font-bold text-white">00:00</p>
           </div>
         </div>
-
+      </div>
+      <div id="right-container" class="flex flex-col w-1/2 h-full">
         <div id="lower-container" class="bg-black bg-opacity-60 rounded-lg m-3">
           <p class="text-4xl p-5 font-bold text-white">
             ECG Heartbeat Categorization
@@ -130,17 +206,15 @@ console.log("Trying to connect to", backendUrl);
             <div class="flex flex-row h-full -mb-5">
               <div
                 id="signals-container"
-                class="bg-black w-3/4 h-[250px] mb-0 m-5"
+                class="bg-black w-3/4 h-[90%] mb-5 m-5"
               >
+                <ProcessPrediction client:load ecgData={predictionData} />
               </div>
               <div class="flex flex-col items-center justify-center w-1/4">
                 <p class="text-3xl p-5 pb-0 font-bold text-white">SERVER</p>
                 <p class="text-3xl p-5 pt-0 font-bold text-white">STATUS</p>
                 <p class="text-1xl p-5 font-bold text-white">{serverStatus}</p>
-                <button
-                  class="bg-[#000000] bg-opacity-60 font-bold text-white px-6 py-2"
-                  >RUN</button
-                >
+                <RunButton client:load backendUrl={backendUrl} />
               </div>
             </div>
             <p class="text-1sm p-5 ml-2 font-bold text-white w-3/4">
@@ -149,94 +223,6 @@ console.log("Trying to connect to", backendUrl);
               ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
               tempor incididunt ut labore et dolore magna aliqua.
             </p>
-          </div>
-        </div>
-      </div>
-      <div id="right-container" class="flex flex-col w-1/2 h-full">
-        <div
-          id="1st-container"
-          class="bg-black bg-opacity-60 rounded-lg m-3 flex flex-row"
-        >
-          <div class="flex flex-col w-2/3 -mb-1">
-            <p class="text-4xl p-5 pb-0 -mb-2 font-bold text-white">P-WAVES</p>
-            <div class="flex flex-col">
-              <div id="signals-container" class="bg-black w-full h-[200px] m-5">
-              </div>
-              <div class="flex ml-6 -mt-4 pb-4 justify-between gap-4">
-                <button
-                  class="bg-[#ffffff] bg-opacity-60 font-bold text-white px-8 py-1"
-                  >STOP</button
-                >
-                <button
-                  class="bg-[#000000] bg-opacity-60 font-bold -mr-5 text-white px-8 py-1"
-                  >START</button
-                >
-              </div>
-            </div>
-          </div>
-          <div class="flex flex-col w-1/3 items-center justify-center">
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Normal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">120</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Anormal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">20</p>
-          </div>
-        </div>
-        <div
-          id="2nd-container"
-          class="bg-black bg-opacity-60 rounded-lg m-3 flex flex-row"
-        >
-          <div class="flex flex-col w-2/3 -mb-4">
-            <p class="text-4xl p-5 pb-0 -mb-2 font-bold text-white">
-              QRS-WAVES
-            </p>
-            <div class="flex flex-col">
-              <div id="signals-container" class="bg-black w-full h-[200px] m-5">
-              </div>
-              <div class="flex ml-6 -mt-4 pb-7 justify-between gap-4">
-                <button
-                  class="bg-[#ffffff] bg-opacity-60 font-bold text-white px-8 py-1"
-                  >STOP</button
-                >
-                <button
-                  class="bg-[#000000] bg-opacity-60 font-bold -mr-5 text-white px-8 py-1"
-                  >START</button
-                >
-              </div>
-            </div>
-          </div>
-          <div class="flex flex-col w-1/3 items-center justify-center">
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Normal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">100</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Anormal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">40</p>
-          </div>
-        </div>
-        <div
-          id="3rd-container"
-          class="bg-black bg-opacity-60 rounded-lg m-3 flex flex-row"
-        >
-          <div class="flex flex-col w-2/3 -mb-1">
-            <p class="text-4xl p-5 pb-0 -mb-2 font-bold text-white">T-WAVES</p>
-            <div class="flex flex-col">
-              <div id="signals-container" class="bg-black w-full h-[200px] m-5">
-              </div>
-              <div class="flex ml-6 -mt-4 pb-4 justify-between gap-4">
-                <button
-                  class="bg-[#ffffff] bg-opacity-60 font-bold text-white px-8 py-1"
-                  >STOP</button
-                >
-                <button
-                  class="bg-[#000000] bg-opacity-60 font-bold -mr-5 text-white px-8 py-1"
-                  >START</button
-                >
-              </div>
-            </div>
-          </div>
-          <div class="flex flex-col w-1/3 items-center justify-center">
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Normal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">130</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">Anormal</p>
-            <p class="text-4xl p-5 pb-0 font-bold text-white">10</p>
           </div>
         </div>
       </div>
