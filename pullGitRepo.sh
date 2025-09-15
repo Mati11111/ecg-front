@@ -14,5 +14,5 @@ else
     echo "BACKEND CHANGED RESTARTING FRONT"
 fi
 
-pm2 restart 5
+pm2 restart 2
 echo "FRONT RELOADED"
